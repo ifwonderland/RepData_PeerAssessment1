@@ -4,22 +4,91 @@ output:
   html_document:
     keep_md: true
 ---
+```{r global setting}
+library(knitr)
+opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE)
+```
 
 
 ## Loading and preprocessing the data
-
+```{r loadProcessData}
+activity <- read.csv("activity.csv")
+activity$date <- as.Date(as.character(activity$date))
+```
 
 
 ## What is mean total number of steps taken per day?
+```{r stepsByDate, fig.height=4, fig.width=4}
+#calculate total steps per day with missing values
+library(dplyr)
+stepsByDay <- activity %>% group_by(date) %>% summarise(total = sum(steps))
+#make histogram of total steps per day
+hist(stepsByDay$total, main = "Total steps per day histogram", xlab = "Steps", ylab = "Frequency")
+#Calculate and report the mean and median total number of steps taken per day
+averageSteps <- mean(stepsByDay$total, na.rm = TRUE)
+medianSteps <- median(stepsByDay$total, na.rm = TRUE)
+```
+Average steps across all days (excluding missing values) is `r sprintf("%.2f", averageSteps)`  
+Median steps across all days (excluding missing values) is `r sprintf("%.0d", medianSteps)`
 
 
 
 ## What is the average daily activity pattern?
+```{r averageDailyActivity, fig.height= 4, fig.width= 4}
+#1. Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
 
+#Average by interval across days 
+stepsByInterval <- activity %>% group_by(interval) %>% summarise(average = mean(steps, na.rm = TRUE))
+
+#Time series plot
+library(ggplot2)
+qplot(interval, average, data = stepsByInterval, main = "Time series of average steps cross days", geom = "smooth")
+
+#2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+#Find max
+maxInterval <- stepsByInterval[which.max(stepsByInterval$average), ]$interval
+```
+Interval : `r maxInterval` has max number of steps
 
 
 ## Imputing missing values
+```{r imputingData, fig.height=4, fig.width=4, warning=FALSE}
+
+#1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+totalMissing <- sum(is.na(activity$steps))
+totalMissing
+
+#2. Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+library(Hmisc)
+#impute using median for steps
+#Create a new dataset that is equal to the original dataset but with the missing data filled in.
+imputedActivity <- activity
+imputedActivity$steps <- with(imputedActivity, impute(steps, median))
 
 
+#4. Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+imputedStepsByDay <- imputedActivity %>% group_by(date) %>% summarise(total = sum(steps))
+hist(imputedStepsByDay$total, main = "Total steps per day histogram", xlab = "Steps", ylab = "Frequency")
+
+imputedMeanSteps <- mean(imputedStepsByDay$total)
+imputedMeanSteps
+imputedMedianSteps <- median(imputedStepsByDay$total)
+imputedMedianSteps
+```
+Both mean and median decreased after missing value are filled in with median values. 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r weekDayWeekendsPattern}
+#Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+imputedActivity$day <- ifelse(weekdays(imputedActivity$date) %in% c("Saturday", "Sunday"), "weekend", "weekday")
+imputedActivity$day <- as.factor(imputedActivity$day)
+
+#Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). The plot should look something like the following, which was creating using simulated data:
+
+#Average cross days
+stepsByIntervalImputed <- imputedActivity %>% group_by(day, interval) %>% summarise(average = mean(steps))
+
+xyplot(average~interval|day, data = stepsByIntervalImputed, layout= c(1, 2), type = "l")
+```
+
